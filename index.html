@@ -5,16 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voting System</title>
     <!-- Add Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js"></script>
-</head>
-<body>
-    <h1>Vote Counter</h1>
-    <p>Votes: <span id="voteCount">0</span></p>
-    <button id="voteButton">Vote</button>
-    <p id="message"></p>
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, updateDoc, getDoc, query, where, getDocs, increment } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-firestore.js";
 
-    <script>
         // Your Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyCRUzjpMXtsyRl3WP7oYI9UxHLyDOMgq-U",
@@ -22,12 +17,13 @@
             projectId: "myvote-139f7",
             storageBucket: "myvote-139f7.firebasestorage.app",
             messagingSenderId: "495604900067",
-            appId: "1:495604900067:web:0f6d73ef25947ed0ba65d6"
+            appId: "1:495604900067:web:0f6d73ef25947ed0ba65d6",
+            measurementId: "G-9W2S4T5YN1"
         };
 
         // Initialize Firebase
-        const app = firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
         const voteButton = document.getElementById('voteButton');
         const voteCount = document.getElementById('voteCount');
@@ -42,52 +38,48 @@
 
         // Fetch today's total votes
         async function fetchVoteCount() {
-            const today = new Date().toISOString().split('T')[0];
-            const docRef = db.collection('dailyVotes').doc(today);
-            const doc = await docRef.get();
-            if (doc.exists) {
-                voteCount.textContent = doc.data().totalVotes;
+            const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+            const docRef = doc(db, 'dailyVotes', today); // Reference to today's document
+            const docSnap = await getDoc(docRef); // Get the document
+            if (docSnap.exists()) {
+                voteCount.textContent = docSnap.data().totalVotes; // Update the vote count display
             } else {
-                voteCount.textContent = 0;
+                voteCount.textContent = 0; // If no votes exist for today, set count to 0
             }
         }
 
         // Handle vote button click
         voteButton.addEventListener('click', async () => {
             try {
-                const ip = await getIP();
-                const today = new Date().toISOString().split('T')[0];
+                const ip = await getIP(); // Get the user's IP address
+                const today = new Date().toISOString().split('T')[0]; // Get today's date
 
                 // Check if the user has already voted 3 times today
-                const userVotes = await db.collection('userVotes')
-                    .where('ip', '==', ip)
-                    .where('date', '==', today)
-                    .get();
-
-                if (userVotes.size >= 3) {
+                const userVotesQuery = query(collection(db, 'userVotes'), where('ip', '==', ip), where('date', '==', today));
+                const userVotesSnapshot = await getDocs(userVotesQuery);
+                if (userVotesSnapshot.size >= 3) {
                     message.textContent = 'You have reached the vote limit for today.';
                     return;
                 }
 
-                // Record the user's vote
-                await db.collection('userVotes').add({
+                // Record the user's vote in the userVotes collection
+                await addDoc(collection(db, 'userVotes'), {
                     ip: ip,
                     date: today,
                     count: 1
                 });
 
-                // Update the total votes for the day
-                const dailyVoteRef = db.collection('dailyVotes').doc(today);
-                const dailyVoteDoc = await dailyVoteRef.get();
-
-                if (dailyVoteDoc.exists) {
-                    await dailyVoteRef.update({
-                        totalVotes: firebase.firestore.FieldValue.increment(1)
+                // Update the total votes for the day in the dailyVotes collection
+                const dailyVoteRef = doc(db, 'dailyVotes', today);
+                const dailyVoteDoc = await getDoc(dailyVoteRef);
+                if (dailyVoteDoc.exists()) {
+                    await updateDoc(dailyVoteRef, {
+                        totalVotes: increment(1) // Increment the total votes by 1
                     });
                 } else {
-                    await dailyVoteRef.set({
+                    await setDoc(dailyVoteRef, {
                         date: today,
-                        totalVotes: 1
+                        totalVotes: 1 // Initialize total votes to 1
                     });
                 }
 
@@ -100,8 +92,14 @@
             }
         });
 
-        // Fetch initial vote count
+        // Fetch initial vote count when the page loads
         fetchVoteCount();
     </script>
+</head>
+<body>
+    <h1>Vote Counter</h1>
+    <p>Votes: <span id="voteCount">0</span></p>
+    <button id="voteButton">Vote</button>
+    <p id="message"></p>
 </body>
 </html>
